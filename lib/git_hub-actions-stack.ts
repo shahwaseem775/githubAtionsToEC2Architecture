@@ -23,6 +23,10 @@ export class GitHubActionsStack extends Stack {
       type: 'String',
       description: 'Enter S3 bucket Name where Project artifacts will be stored',
     });
+    // const EC2KeyPairName = new cdk.CfnParameter(this, 'EC2KeyPair', {
+    //   type: 'String',
+    //   description: 'Enter the Existing KeyPair Name for Ec2 instance',
+    // });
     // const s3bucket = "github-projects-bucket"
 const ec2s3Policy = new iam.PolicyDocument({
   statements:[new iam.PolicyStatement({
@@ -109,11 +113,11 @@ newSecurityGroup.addIngressRule(
   ec2.Port.tcp(8080),
   'allow 8080 port for tomcat server access from anywhere',
 );
-newSecurityGroup.addIngressRule(
-  ec2.Peer.anyIpv4(),
-  ec2.Port.tcp(22),
-  'allow 22 port for ssh',
-);
+// newSecurityGroup.addIngressRule(
+//   ec2.Peer.anyIpv4(),
+//   ec2.Port.tcp(22),
+//   'allow 22 port for ssh',
+// );
 const ec2Instance = new ec2.Instance(this, 'ec2-instance', {
   vpc: defaultVPC,
   vpcSubnets: {
@@ -123,7 +127,7 @@ const ec2Instance = new ec2.Instance(this, 'ec2-instance', {
   machineImage: new ec2.AmazonLinuxImage({
     generation: ec2.AmazonLinuxGeneration.AMAZON_LINUX_2,
   }),
-  keyName: 'Ec2-key-pair',
+  // keyName: 'Ec2-key-pair',
   securityGroup : newSecurityGroup,
   instanceName:'firstCDKInstance',
   role :ec2iamRole
