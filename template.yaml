@@ -1,0 +1,313 @@
+Resources:
+  ec2iamRoleCDk813E3E23:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - codedeploy.us-east-1.amazonaws.com
+                - ec2.amazonaws.com
+        Version: "2012-10-17"
+      Description: "this role is for the Ec2 instance to perform action on the services like "
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action: s3:getObject
+                Effect: Allow
+                Resource: arn:aws:s3:::github-projects-bucket/*
+            Version: "2012-10-17"
+          PolicyName: ec2s3Policy
+      RoleName: iamRoleForEc2InstanceGithubActions
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/ec2iamRoleCDk/Resource
+  CodeDeployServiceRoleCDKC159BF97:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: codedeploy.us-east-1.amazonaws.com
+        Version: "2012-10-17"
+      Description: "This Role will be Attached to codeDeploy Deployment Group "
+      ManagedPolicyArns:
+        - Fn::Join:
+            - ""
+            - - "arn:"
+              - Ref: AWS::Partition
+              - :iam::aws:policy/service-role/AWSCodeDeployRole
+      RoleName: CodeDeployServiceRole
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/CodeDeployServiceRoleCDK/Resource
+  OIDCProviderCDkC5BF6929:
+    Type: Custom::AWSCDKOpenIdConnectProvider
+    Properties:
+      ServiceToken:
+        Fn::GetAtt:
+          - CustomAWSCDKOpenIdConnectProviderCustomResourceProviderHandlerF2C543E0
+          - Arn
+      ClientIDList:
+        - sts.amazonaws.com
+      ThumbprintList:
+        - 6938fd4d98bab03faadb97b34396831e3780aea1
+      Url: https://token.actions.githubusercontent.com
+    UpdateReplacePolicy: Delete
+    DeletionPolicy: Delete
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/OIDCProviderCDk/Resource/Default
+  CustomAWSCDKOpenIdConnectProviderCustomResourceProviderRole517FED65:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Action: sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+      ManagedPolicyArns:
+        - Fn::Sub: arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: Inline
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Resource: "*"
+                Action:
+                  - iam:CreateOpenIDConnectProvider
+                  - iam:DeleteOpenIDConnectProvider
+                  - iam:UpdateOpenIDConnectProviderThumbprint
+                  - iam:AddClientIDToOpenIDConnectProvider
+                  - iam:RemoveClientIDFromOpenIDConnectProvider
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/Custom::AWSCDKOpenIdConnectProviderCustomResourceProvider/Role
+  CustomAWSCDKOpenIdConnectProviderCustomResourceProviderHandlerF2C543E0:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: cdk-hnb659fds-assets-391507976411-us-east-1
+        S3Key: f3e36972d790833d19c6f0f2843e20a2341033233fcbd273fe8b77b22726f941.zip
+      Timeout: 900
+      MemorySize: 128
+      Handler: __entrypoint__.handler
+      Role:
+        Fn::GetAtt:
+          - CustomAWSCDKOpenIdConnectProviderCustomResourceProviderRole517FED65
+          - Arn
+      Runtime: nodejs12.x
+    DependsOn:
+      - CustomAWSCDKOpenIdConnectProviderCustomResourceProviderRole517FED65
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/Custom::AWSCDKOpenIdConnectProviderCustomResourceProvider/Handler
+      aws:asset:path: asset.f3e36972d790833d19c6f0f2843e20a2341033233fcbd273fe8b77b22726f941
+      aws:asset:property: Code
+  OIDCGithubRoleCDK718D369B:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              conditions:
+                StringLike:
+                  token.actions.githubusercontent.com:sub:
+                    Fn::Sub: repo:shahwaseem775/gitHubActionsDeployToEc2CDK:*
+            Effect: Allow
+            Principal:
+              Federated:
+                Ref: OIDCProviderCDkC5BF6929
+        Version: "2012-10-17"
+      Policies:
+        - PolicyDocument:
+            Statement:
+              - Action:
+                  - codedeploy:Batch*
+                  - codedeploy:CreateDeployment
+                  - codedeploy:Get*
+                  - codedeploy:List*
+                  - codedeploy:RegisterApplicationRevision
+                  - s3:putObject
+                Effect: Allow
+                Resource:
+                  - arn:aws:codedeploy:*:${accountId}:*
+                  - arn:aws:s3:::github-projects-bucket/*
+            Version: "2012-10-17"
+          PolicyName: iampolicy
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/OIDCGithubRoleCDK/Resource
+  ec2SecurityGroup2F3DB50B:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: GitHubActionsStack/ec2SecurityGroup
+      GroupName: ec2SecurityGroupCDK
+      SecurityGroupEgress:
+        - CidrIp: 0.0.0.0/0
+          Description: Allow all outbound traffic by default
+          IpProtocol: "-1"
+      SecurityGroupIngress:
+        - CidrIp: 0.0.0.0/0
+          Description: allow 8080 port for tomcat server access from anywhere
+          FromPort: 8080
+          IpProtocol: tcp
+          ToPort: 8080
+        - CidrIp: 0.0.0.0/0
+          Description: allow 22 port for ssh
+          FromPort: 22
+          IpProtocol: tcp
+          ToPort: 22
+      VpcId: vpc-00d4749f139132778
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/ec2SecurityGroup/Resource
+  ec2instanceInstanceProfile9BCE9015:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - Ref: ec2iamRoleCDk813E3E23
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/ec2-instance/InstanceProfile
+  ec2instance42082E81:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: us-east-1a
+      IamInstanceProfile:
+        Ref: ec2instanceInstanceProfile9BCE9015
+      ImageId:
+        Ref: SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amihvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter
+      InstanceType: t2.micro
+      KeyName: Ec2-key-pair
+      SecurityGroupIds:
+        - Fn::GetAtt:
+            - ec2SecurityGroup2F3DB50B
+            - GroupId
+      SubnetId: subnet-09c6d58d865564ab8
+      Tags:
+        - Key: Name
+          Value: firstCDKInstance
+      UserData:
+        Fn::Base64: |-
+          #!/bin/bash
+          #!/bin/bash
+          yum  install -y java-1.8.0-openjdk-devel wget
+          java -version
+          cd /usr/local
+          wget https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.43/bin/apache-tomcat-9.0.43.zip
+          wget https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.43/bin/apache-tomcat-9.0.43.zip.asc
+          wget https://archive.apache.org/dist/tomcat/tomcat-9/v9.0.43/bin/apache-tomcat-9.0.43.zip.sha512
+          # verify hash / are these two outputs the same
+          cat apache-tomcat-9.0.43.zip.sha512
+          sha512sum apache-tomcat-9.0.43.zip
+          gpg --keyserver pgpkeys.mit.edu --recv-key A9C5DF4D22E99998D9875A5110C01C5A2F6059E7
+          gpg --verify apache-tomcat-9.0.43.zip.asc apache-tomcat-9.0.43.zip
+          # if hash and signature are ok:
+          unzip apache-tomcat-9.0.43.zip
+          mv apache-tomcat-9.0.43 tomcat9
+          echo 'JAVA_OPTS="$JAVA_OPTS -Djava.net.preferIPv4Stack=true -Djava.net.preferIPv4Addresses=true "' > /usr/local/tomcat9/bin/setenv.sh
+          ls -la tomcat9/
+          useradd -r tomcat
+          chown -R tomcat:tomcat /usr/local/tomcat9
+          ls -l /usr/local/tomcat9
+          echo "[Unit]
+          Description=Apache Tomcat Server
+          After=syslog.target network.target
+          [Service]
+          Type=forking
+          User=tomcat
+          Group=tomcat
+          Environment=CATALINA_PID=/usr/local/tomcat9/temp/tomcat.pid
+          Environment=CATALINA_HOME=/usr/local/tomcat9
+          Environment=CATALINA_BASE=/usr/local/tomcat9
+          ExecStart=/usr/local/tomcat9/bin/catalina.sh start
+          ExecStop=/usr/local/tomcat9/bin/catalina.sh stop
+          RestartSec=10
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target" > /etc/systemd/system/tomcat.service
+          # firewall-cmd --zone=public --permanent --add-port=8080/tcp
+          # firewall-cmd --zone=public --permanent --add-port=8443/tcp
+          # firewall-cmd --reload
+          cd /usr/local/tomcat9/bin && chmod +x catalina.sh
+          systemctl daemon-reload
+          systemctl start tomcat.service
+          systemctl enable tomcat.service
+          systemctl status tomcat.service
+          yum install ruby -y
+          wget https://aws-codedeploy-us-east-1.s3.us-east-1.amazonaws.com/latest/install
+          chmod +x ./install
+          ./install auto
+          cd /tmp
+          yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+          systemctl enable amazon-ssm-agent
+          systemctl start amazon-ssm-agent
+    DependsOn:
+      - ec2iamRoleCDk813E3E23
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/ec2-instance/Resource
+  CodeDeployApplicationCDKE31D8DC7:
+    Type: AWS::CodeDeploy::Application
+    Properties:
+      ApplicationName: githubActionsEC2DeployApplicationCDK
+      ComputePlatform: Server
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/CodeDeployApplicationCDK/Resource
+  githubActionsDeploymentGroupCDK01C21463:
+    Type: AWS::CodeDeploy::DeploymentGroup
+    Properties:
+      ApplicationName:
+        Ref: CodeDeployApplicationCDKE31D8DC7
+      ServiceRoleArn:
+        Fn::GetAtt:
+          - CodeDeployServiceRoleCDKC159BF97
+          - Arn
+      AutoRollbackConfiguration:
+        Enabled: true
+        Events:
+          - DEPLOYMENT_FAILURE
+      DeploymentConfigName: CodeDeployDefault.AllAtOnce
+      DeploymentGroupName: githubActionsDeploymentGroupCDK
+      Ec2TagSet:
+        Ec2TagSetList:
+          - Ec2TagGroup:
+              - Key: Name
+                Type: KEY_AND_VALUE
+                Value: firstCDKInstance
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/githubActionsDeploymentGroupCDK/Resource
+  CDKMetadata:
+    Type: AWS::CDK::Metadata
+    Properties:
+      Analytics: v2:deflate64:H4sIAAAAAAAA/11QwW7CMAz9Fu5pNorEHTpp4gTqPmDKEoNMEydKnE6o6r8vpRorO9l+fn7Pdi3rrXxdqe9UadNVFr/k8MFKd6JAnwMqJ4fWWxDNme7xGIAOpvFEoPkUfY8G4tQ9UGJFGgp2RgujAF0XLdA5It/eo89hoj0Dv0NLgVFob8BAsP42CcQe4i4Ei1oxepqoy3ImvN3pDogfTv+gUaSN3GfdAe9VKi5NTuxdC8nnOG/wlz+1HlfuUgIu37kgXcRy8KSicsAQR0Fld3lNL/16K9cbWa+uCbGKmRgdyHaOP42w+R52AQAA
+    Metadata:
+      aws:cdk:path: GitHubActionsStack/CDKMetadata/Default
+Parameters:
+  SsmParameterValueawsserviceamiamazonlinuxlatestamzn2amihvmx8664gp2C96584B6F00A464EAD1953AFF4B05118Parameter:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+  BootstrapVersion:
+    Type: AWS::SSM::Parameter::Value<String>
+    Default: /cdk-bootstrap/hnb659fds/version
+    Description: Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]
+Rules:
+  CheckBootstrapVersion:
+    Assertions:
+      - Assert:
+          Fn::Not:
+            - Fn::Contains:
+                - - "1"
+                  - "2"
+                  - "3"
+                  - "4"
+                  - "5"
+                - Ref: BootstrapVersion
+        AssertDescription: CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI.
+
