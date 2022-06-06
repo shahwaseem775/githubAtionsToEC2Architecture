@@ -1,4 +1,5 @@
 import { Resource, Stack, StackProps,ScopedAws,Fn } from 'aws-cdk-lib';
+import * as cdk from 'aws-cdk-lib';
 import { Construct } from 'constructs';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import {read, readFileSync} from 'fs';
@@ -18,13 +19,17 @@ export class GitHubActionsStack extends Stack {
       urlSuffix,
     } = new ScopedAws(this)
 
-    const s3bucket = "github-projects-bucket"
+    const s3bucket = new cdk.CfnParameter(this, 'S3BucketName', {
+      type: 'String',
+      description: 'Enter S3 bucket Name where Project artifacts will be stored',
+    });
+    // const s3bucket = "github-projects-bucket"
 const ec2s3Policy = new iam.PolicyDocument({
   statements:[new iam.PolicyStatement({
     actions:[
      "s3:getObject"
     ],
-    resources: [`arn:aws:s3:::${s3bucket}/*`]
+    resources: [`arn:aws:s3:::${s3bucket.valueAsString}/*`]
   })]
 })
   const ec2iamRole = new iam.Role(this,'ec2iamRoleCDk',{
@@ -80,7 +85,7 @@ const OIDCGithubRole = new iam.Role(this,"OIDCGithubRoleCDK", {
           's3:putObject'
         ],
         resources: [
-          `arn:aws:s3:::${s3bucket}/*`,
+          `arn:aws:s3:::${s3bucket.valueAsString}/*`,
           `arn:aws:codedeploy:*:${accountId}:*` 
         ]
         })]})},
